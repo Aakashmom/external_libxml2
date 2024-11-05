@@ -13898,7 +13898,8 @@ xmlParseBalancedChunkMemoryRecover(xmlDocPtr doc, xmlSAXHandlerPtr sax,
     xmlFreeParserCtxt(ctxt);
     newDoc->intSubset = NULL;
     newDoc->extSubset = NULL;
-    newDoc->oldNs = NULL;
+    if(doc != NULL)
+	newDoc->oldNs = NULL;
     xmlFreeDoc(newDoc);
 
     return(ret);
