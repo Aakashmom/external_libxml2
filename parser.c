@@ -6167,6 +6167,8 @@ xmlParseElementChildrenContentDeclPriv(xmlParserCtxtPtr ctxt, int inputchk,
 	SKIP_BLANKS;
         cur = ret = xmlParseElementChildrenContentDeclPriv(ctxt, inputid,
                                                            depth + 1);
+        if (cur == NULL)
+            return(NULL);
 	SKIP_BLANKS;
 	GROW;
     } else {
@@ -6300,6 +6302,11 @@ xmlParseElementChildrenContentDeclPriv(xmlParserCtxtPtr ctxt, int inputchk,
 	    SKIP_BLANKS;
 	    last = xmlParseElementChildrenContentDeclPriv(ctxt, inputid,
                                                           depth + 1);
+            if (last == NULL) {
+		if (ret != NULL)
+		    xmlFreeDocElementContent(ctxt->myDoc, ret);
+		return(NULL);
+            }
 	    SKIP_BLANKS;
 	} else {
 	    elem = xmlParseName(ctxt);
@@ -13898,7 +13905,8 @@ xmlParseBalancedChunkMemoryRecover(xmlDocPtr doc, xmlSAXHandlerPtr sax,
     xmlFreeParserCtxt(ctxt);
     newDoc->intSubset = NULL;
     newDoc->extSubset = NULL;
-    newDoc->oldNs = NULL;
+    if(doc != NULL)
+	newDoc->oldNs = NULL;
     xmlFreeDoc(newDoc);
 
     return(ret);
