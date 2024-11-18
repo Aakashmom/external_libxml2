@@ -112,36 +112,19 @@ xmlFreeEntity(xmlEntityPtr entity)
     if ((entity->children) && (entity->owner == 1) &&
         (entity == (xmlEntityPtr) entity->children->parent))
         xmlFreeNodeList(entity->children);
-    if (dict != NULL) {
-        if ((entity->name != NULL) && (!xmlDictOwns(dict, entity->name)))
-            xmlFree((char *) entity->name);
-        if ((entity->ExternalID != NULL) &&
-	    (!xmlDictOwns(dict, entity->ExternalID)))
-            xmlFree((char *) entity->ExternalID);
-        if ((entity->SystemID != NULL) &&
-	    (!xmlDictOwns(dict, entity->SystemID)))
-            xmlFree((char *) entity->SystemID);
-        if ((entity->URI != NULL) && (!xmlDictOwns(dict, entity->URI)))
-            xmlFree((char *) entity->URI);
-        if ((entity->content != NULL)
-            && (!xmlDictOwns(dict, entity->content)))
-            xmlFree((char *) entity->content);
-        if ((entity->orig != NULL) && (!xmlDictOwns(dict, entity->orig)))
-            xmlFree((char *) entity->orig);
-    } else {
-        if (entity->name != NULL)
-            xmlFree((char *) entity->name);
-        if (entity->ExternalID != NULL)
-            xmlFree((char *) entity->ExternalID);
-        if (entity->SystemID != NULL)
-            xmlFree((char *) entity->SystemID);
-        if (entity->URI != NULL)
-            xmlFree((char *) entity->URI);
-        if (entity->content != NULL)
-            xmlFree((char *) entity->content);
-        if (entity->orig != NULL)
-            xmlFree((char *) entity->orig);
-    }
+    if ((entity->name != NULL) &&
+        ((dict == NULL) || (!xmlDictOwns(dict, entity->name))))
+        xmlFree((char *) entity->name);
+    if (entity->ExternalID != NULL)
+        xmlFree((char *) entity->ExternalID);
+    if (entity->SystemID != NULL)
+        xmlFree((char *) entity->SystemID);
+    if (entity->URI != NULL)
+        xmlFree((char *) entity->URI);
+    if (entity->content != NULL)
+        xmlFree((char *) entity->content);
+    if (entity->orig != NULL)
+        xmlFree((char *) entity->orig);
     xmlFree(entity);
 }
 
@@ -177,18 +160,12 @@ xmlCreateEntity(xmlDictPtr dict, const xmlChar *name, int type,
 	    ret->SystemID = xmlStrdup(SystemID);
     } else {
         ret->name = xmlDictLookup(dict, name, -1);
-	if (ExternalID != NULL)
-	    ret->ExternalID = xmlDictLookup(dict, ExternalID, -1);
-	if (SystemID != NULL)
-	    ret->SystemID = xmlDictLookup(dict, SystemID, -1);
+	ret->ExternalID = xmlStrdup(ExternalID);
+	ret->SystemID = xmlStrdup(SystemID);
     }
     if (content != NULL) {
         ret->length = xmlStrlen(content);
-	if ((dict != NULL) && (ret->length < 5))
-	    ret->content = (xmlChar *)
-	                   xmlDictLookup(dict, content, ret->length);
-	else
-	    ret->content = xmlStrndup(content, ret->length);
+	ret->content = xmlStrndup(content, ret->length);
      } else {
         ret->length = 0;
         ret->content = NULL;
@@ -666,11 +643,25 @@ xmlEncodeEntitiesInternal(xmlDocPtr doc, const xmlChar *input, int attr) {
 	    } else {
 		/*
 		 * We assume we have UTF-8 input.
+		 * It must match either:
+		 *   110xxxxx 10xxxxxx
+		 *   1110xxxx 10xxxxxx 10xxxxxx
+		 *   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+		 * That is:
+		 *   cur[0] is 11xxxxxx
+		 *   cur[1] is 10xxxxxx
+		 *   cur[2] is 10xxxxxx if cur[0] is 111xxxxx
+		 *   cur[3] is 10xxxxxx if cur[0] is 1111xxxx
+		 *   cur[0] is not 11111xxx
 		 */
 		char buf[11], *ptr;
 		int val = 0, l = 1;
 
-		if (*cur < 0xC0) {
+		if (((cur[0] & 0xC0) != 0xC0) ||
+		    ((cur[1] & 0xC0) != 0x80) ||
+		    (((cur[0] & 0xE0) == 0xE0) && ((cur[2] & 0xC0) != 0x80)) ||
+		    (((cur[0] & 0xF0) == 0xF0) && ((cur[3] & 0xC0) != 0x80)) ||
+		    (((cur[0] & 0xF8) == 0xF8))) {
 		    xmlEntitiesErr(XML_CHECK_NOT_UTF8,
 			    "xmlEncodeEntities: input not UTF-8");
 		    if (doc != NULL)
